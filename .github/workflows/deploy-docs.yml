@@ -25,30 +25,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Perl
-        run: sudo apt-get install -y perl
+      # NaturalDocs 2.x is a .NET exe — run it with Mono on Linux
+      - name: Install Mono
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y mono-runtime
 
       - name: Download and unpack NaturalDocs
         run: |
           curl -L -o NaturalDocs.zip \
             https://www.naturaldocs.org/download/natural_docs/2.3/Natural_Docs_2.3.zip
           unzip -q NaturalDocs.zip -d nd_extracted
-
-      - name: Debug - show extracted structure
-        run: find nd_extracted -maxdepth 3 | sort
+          mv "nd_extracted/Natural Docs" nd_bin
 
       - name: Prepare NaturalDocs working directory
         run: mkdir -p "naturaldocs/Working Data"
 
       - name: Run NaturalDocs
         run: |
-          # Find the NaturalDocs entry point (.pl or no extension)
-          ND_SCRIPT=$(find nd_extracted -name "NaturalDocs.pl" | head -1)
-          if [ -z "$ND_SCRIPT" ]; then
-            ND_SCRIPT=$(find nd_extracted -name "NaturalDocs" | head -1)
-          fi
-          echo "Found NaturalDocs at: $ND_SCRIPT"
-          perl "$ND_SCRIPT" \
+          mono nd_bin/NaturalDocs.exe \
             --project naturaldocs \
             --input   src \
             --output  HTML docs/naturaldocs
