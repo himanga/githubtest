@@ -1,0 +1,76 @@
+name: Build & Deploy Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+
+# Grant the workflow permission to write to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deployment at a time; cancel in-flight runs on new push
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  # ── Job 1: Generate NaturalDocs API reference ──────────────────
+  build-naturaldocs:
+    name: Generate API docs (NaturalDocs)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # NaturalDocs requires Perl
+      - name: Install Perl
+        run: sudo apt-get install -y perl
+
+      # Download and unpack NaturalDocs 2.x
+      - name: Download NaturalDocs
+        run: |
+          curl -L -o NaturalDocs.zip \
+            https://www.naturaldocs.org/download/natural_docs/2.3/Natural_Docs_2.3.zip
+          unzip -q NaturalDocs.zip -d NaturalDocs
+
+      # Create the working-data directory NaturalDocs expects
+      - name: Prepare NaturalDocs working directory
+        run: mkdir -p naturaldocs/Working\ Data
+
+      # Run NaturalDocs to generate HTML into docs/naturaldocs/
+      - name: Run NaturalDocs
+        run: |
+          perl NaturalDocs/NaturalDocs \
+            --project naturaldocs \
+            --input   src \
+            --output  HTML docs/naturaldocs
+
+      # Upload the fully built docs/ folder as an artifact for the deploy job
+      - name: Upload docs artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  # ── Job 2: Deploy to GitHub Pages ─────────────────────────────
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build-naturaldocs
+    # Only deploy on pushes to main (not on PRs)
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

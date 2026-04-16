@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>foo — Documentation</title>
+  <link rel="stylesheet" href="assets/style.css" />
+  <!-- marked.js: parse markdown in-browser -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <style>
+    /* Loading state while markdown fetches */
+    .prose-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 300px;
+      color: var(--text-faint);
+      font-family: var(--font-code);
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .prose-loading::before {
+      content: '⬡';
+      display: inline-block;
+      margin-right: 0.6rem;
+      animation: spin 1.5s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* API iframe adjustments */
+    #panel-api iframe {
+      background: var(--bg);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Site header ── -->
+  <header class="site-header">
+    <div class="logo">foo<span>()</span></div>
+    <nav>
+      <a href="https://github.com/example/foo-lib" target="_blank">GitHub</a>
+      <a href="https://www.npmjs.com/package/foo-lib" target="_blank">npm</a>
+    </nav>
+  </header>
+
+  <!-- ── Tab bar ── -->
+  <div class="tab-bar" role="tablist">
+    <button class="tab-btn active" role="tab" data-tab="home">Home</button>
+    <button class="tab-btn"        role="tab" data-tab="help">Help</button>
+    <button class="tab-btn"        role="tab" data-tab="api" >API Reference</button>
+  </div>
+
+  <!-- ── Panels ── -->
+
+  <!-- Home -->
+  <div id="panel-home" class="tab-panel active" role="tabpanel">
+    <article class="prose" id="md-home">
+      <div class="prose-loading">Loading…</div>
+    </article>
+  </div>
+
+  <!-- Help -->
+  <div id="panel-help" class="tab-panel" role="tabpanel">
+    <article class="prose" id="md-help">
+      <div class="prose-loading">Loading…</div>
+    </article>
+  </div>
+
+  <!-- API Reference — NaturalDocs iframe -->
+  <div id="panel-api" class="tab-panel iframe-panel" role="tabpanel">
+    <iframe
+      id="nd-frame"
+      src="naturaldocs/index.html"
+      title="API Reference (NaturalDocs)"
+      loading="lazy"
+    ></iframe>
+  </div>
+
+  <script>
+    // ── Tab switching ──────────────────────────────────────────────
+    const tabs   = document.querySelectorAll('.tab-btn');
+    const panels = document.querySelectorAll('.tab-panel');
+
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.tab;
+        tabs.forEach(b => b.classList.toggle('active', b === btn));
+        panels.forEach(p => {
+          p.classList.toggle('active', p.id === `panel-${target}`);
+        });
+        // Push to history so the back button works
+        history.replaceState(null, '', `?tab=${target}`);
+      });
+    });
+
+    // Restore tab from URL query param
+    (function restoreTab() {
+      const params = new URLSearchParams(location.search);
+      const tab = params.get('tab');
+      if (tab) {
+        const btn = document.querySelector(`.tab-btn[data-tab="${tab}"]`);
+        if (btn) btn.click();
+      }
+    })();
+
+    // ── Markdown loader ───────────────────────────────────────────
+    async function loadMarkdown(url, targetId) {
+      const el = document.getElementById(targetId);
+      try {
+        const res  = await fetch(url);
+        if (!res.ok) throw new Error(res.statusText);
+        const text = await res.text();
+        el.innerHTML = marked.parse(text);
+        // Syntax-highlight code blocks (optional — uses highlight.js if available)
+        if (window.hljs) el.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+      } catch (err) {
+        el.innerHTML = `<p style="color:var(--red)">Could not load <code>${url}</code>: ${err.message}</p>`;
+      }
+    }
+
+    loadMarkdown('home.md', 'md-home');
+    loadMarkdown('help.md', 'md-help');
+
+    // ── Pass theme stylesheet into NaturalDocs iframe ─────────────
+    // Once the iframe loads, inject a <link> so it shares our style.
+    // This only works when both pages are same-origin (GitHub Pages).
+    const ndFrame = document.getElementById('nd-frame');
+    ndFrame.addEventListener('load', () => {
+      try {
+        const doc  = ndFrame.contentDocument;
+        const link = doc.createElement('link');
+        link.rel  = 'stylesheet';
+        link.href = '../assets/nd-override.css';
+        doc.head.appendChild(link);
+        doc.body.classList.add('nd-themed');
+      } catch (e) {
+        // Cross-origin or iframe blocked — silently skip theming
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "foo-lib",
+  "version": "1.0.0",
+  "description": "Lightweight value transformation utility",
+  "main": "src/foo.js",
+  "scripts": {
+    "docs": "perl NaturalDocs/NaturalDocs --project naturaldocs --input src --output HTML docs/naturaldocs",
+    "docs:serve": "npx serve docs",
+    "test": "node --test src/foo.test.js"
+  },
+  "keywords": ["transform", "utility"],
+  "license": "MIT"
+}
