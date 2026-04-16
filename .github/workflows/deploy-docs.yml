@@ -34,7 +34,6 @@ jobs:
             https://www.naturaldocs.org/download/natural_docs/2.3/Natural_Docs_2.3.zip
           unzip -q NaturalDocs.zip -d nd_extracted
 
-      # Print the full tree so we can see the exact paths
       - name: Debug - show extracted structure
         run: find nd_extracted -maxdepth 3 | sort
 
@@ -43,8 +42,11 @@ jobs:
 
       - name: Run NaturalDocs
         run: |
-          # Find the NaturalDocs script wherever it landed
-          ND_SCRIPT=$(find nd_extracted -name "NaturalDocs" -not -name "*.pl" | head -1)
+          # Find the NaturalDocs entry point (.pl or no extension)
+          ND_SCRIPT=$(find nd_extracted -name "NaturalDocs.pl" | head -1)
+          if [ -z "$ND_SCRIPT" ]; then
+            ND_SCRIPT=$(find nd_extracted -name "NaturalDocs" | head -1)
+          fi
           echo "Found NaturalDocs at: $ND_SCRIPT"
           perl "$ND_SCRIPT" \
             --project naturaldocs \
