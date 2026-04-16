@@ -33,14 +33,20 @@ jobs:
           curl -L -o NaturalDocs.zip \
             https://www.naturaldocs.org/download/natural_docs/2.3/Natural_Docs_2.3.zip
           unzip -q NaturalDocs.zip -d nd_extracted
-          mv "nd_extracted/Natural Docs" nd_bin
+
+      # Print the full tree so we can see the exact paths
+      - name: Debug - show extracted structure
+        run: find nd_extracted -maxdepth 3 | sort
 
       - name: Prepare NaturalDocs working directory
         run: mkdir -p "naturaldocs/Working Data"
 
       - name: Run NaturalDocs
         run: |
-          perl nd_bin/NaturalDocs \
+          # Find the NaturalDocs script wherever it landed
+          ND_SCRIPT=$(find nd_extracted -name "NaturalDocs" -not -name "*.pl" | head -1)
+          echo "Found NaturalDocs at: $ND_SCRIPT"
+          perl "$ND_SCRIPT" \
             --project naturaldocs \
             --input   src \
             --output  HTML docs/naturaldocs
@@ -64,4 +70,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-        
