@@ -16,6 +16,7 @@ Source Folder: ../src
 # HTML output lands in docs/naturaldocs so GitHub Pages can serve it
 HTML Output Folder: ../docs/naturaldocs
    Project Title: foo API Reference
+   Style: custom
 
 # ── Working data ─────────────────────────────────────────────
 # NaturalDocs stores its working data here (not committed to git,
@@ -26,6 +27,3 @@ Working Data Folder: Working Data
 Tab Width: 4
 Documented Only: No
 Auto-Group: Yes
-
-Styles:
-    custom: ../docs/naturaldocs-theme/custom.css

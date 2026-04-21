@@ -4,6 +4,7 @@ docs/**/naturaldocs/**
 NaturalDocs/**
 !naturaldocs/
 !naturaldocs/Project.txt
+!naturaldocs/custom.css
 nd_extracted/
 nd_bin/
 .DS_Store
