@@ -1,0 +1,1 @@
+﻿NDSearch.OnPrefixDataLoaded("foo",["Function","Variable"],[["foo",,[[,,,,0,"File:foo.js:foo"]]],["fooAsync",,[[,,,,0,"File:foo.js:fooAsync"]]],["FooOptions",,[[,,,,1,"File:foo.js:FooOptions"]]],["FooResult",,[[,,,,1,"File:foo.js:FooResult"]]],["fooWithOptions",,[[,,,,0,"File:foo.js:fooWithOptions"]]]]);

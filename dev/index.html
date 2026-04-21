@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>foo — Documentation</title>
+  <link rel="stylesheet" href="../assets/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <style>
+    /* ── Version banner ── */
+    #version-banner {
+      display: none;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.6rem 2rem;
+      font-family: var(--font-code);
+      font-size: 0.8rem;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+    #version-banner.old {
+      display: flex;
+      background: rgba(217, 123, 108, 0.12);
+      color: var(--red);
+      border-color: rgba(217, 123, 108, 0.3);
+    }
+    #version-banner.pre {
+      display: flex;
+      background: rgba(122, 176, 212, 0.1);
+      color: var(--blue);
+      border-color: rgba(122, 176, 212, 0.25);
+    }
+    #version-banner a {
+      margin-left: auto;
+      color: inherit;
+      opacity: 0.8;
+      text-decoration: underline;
+    }
+    #version-banner a:hover { opacity: 1; }
+
+    /* ── Version selector in header ── */
+    .version-select-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    #version-select {
+      appearance: none;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text-muted);
+      font-family: var(--font-code);
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      padding: 0.3rem 1.6rem 0.3rem 0.7rem;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    #version-select:hover { border-color: var(--border-light); color: var(--text); }
+    #version-select option { background: var(--bg-raised); }
+    /* chevron */
+    .version-select-wrap::after {
+      content: '▾';
+      position: absolute;
+      right: 0.5rem;
+      pointer-events: none;
+      color: var(--text-faint);
+      font-size: 0.7rem;
+    }
+
+    /* ── Loading state ── */
+    .prose-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 300px;
+      color: var(--text-faint);
+      font-family: var(--font-code);
+      font-size: 0.85rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .prose-loading::before {
+      content: '⬡';
+      display: inline-block;
+      margin-right: 0.6rem;
+      animation: spin 1.5s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- ── Site header ── -->
+  <header class="site-header">
+    <div class="logo">foo<span>()</span></div>
+
+    <!-- Version selector — populated by JS -->
+    <div class="version-select-wrap">
+      <select id="version-select" aria-label="Documentation version"></select>
+    </div>
+
+    <nav>
+      <a href="https://github.com/example/foo-lib" target="_blank">GitHub</a>
+      <a href="https://www.npmjs.com/package/foo-lib" target="_blank">npm</a>
+    </nav>
+  </header>
+
+  <!-- ── Version banner (shown for old or pre-release) ── -->
+  <div id="version-banner" role="alert">
+    <span id="banner-text"></span>
+    <a id="banner-link" href="#">View latest release →</a>
+  </div>
+
+  <!-- ── Tab bar ── -->
+  <div class="tab-bar" role="tablist">
+    <button class="tab-btn active" role="tab" data-tab="home">Home</button>
+    <button class="tab-btn"        role="tab" data-tab="help">Help</button>
+    <button class="tab-btn"        role="tab" data-tab="api" >API Reference</button>
+  </div>
+
+  <!-- ── Panels ── -->
+  <div id="panel-home" class="tab-panel active" role="tabpanel">
+    <article class="prose" id="md-home"><div class="prose-loading">Loading…</div></article>
+  </div>
+
+  <div id="panel-help" class="tab-panel" role="tabpanel">
+    <article class="prose" id="md-help"><div class="prose-loading">Loading…</div></article>
+  </div>
+
+  <div id="panel-api" class="tab-panel iframe-panel" role="tabpanel">
+    <iframe id="nd-frame" title="API Reference (NaturalDocs)" loading="lazy"></iframe>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────
+
+    // Resolve a path relative to this page's directory.
+    // When served at /v1.0.0/index.html the base is /v1.0.0/.
+    // When served at /index.html the base is /.
+    function relPath(p) {
+      return p;   // paths in this file are already relative to the page
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Detect which version this page belongs to.
+    // Convention: versioned pages live at  docs/<version>/index.html
+    // The root docs/index.html is always "latest".
+    // ─────────────────────────────────────────────────────────────
+    const pathParts = location.pathname.replace(/\/$/, '').split('/');
+    // If the second-to-last segment looks like a version tag use it,
+    // otherwise we're at the root and this is "latest".
+    const versionSegmentRe = /^v\d+\.\d+/;
+    const pageVersion = versionSegmentRe.test(pathParts[pathParts.length - 2])
+      ? pathParts[pathParts.length - 2]
+      : null;   // null = root = latest
+
+    // ─────────────────────────────────────────────────────────────
+    // Load versions.json (always from root)
+    // ─────────────────────────────────────────────────────────────
+    const rootBase = location.pathname.replace(/\/v\d[^/]*\/.*$/, '/').replace(/\/[^/]*$/, '/');
+
+    async function loadVersions() {
+      const res  = await fetch(rootBase + 'versions.json');
+      const data = await res.json();
+      return data;
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Build version selector & banner
+    // ─────────────────────────────────────────────────────────────
+    async function initVersionUI() {
+      let vdata;
+      try { vdata = await loadVersions(); }
+      catch(e) { console.warn('Could not load versions.json', e); return; }
+
+      const select   = document.getElementById('version-select');
+      const banner   = document.getElementById('version-banner');
+      const bannerTx = document.getElementById('banner-text');
+      const bannerLk = document.getElementById('banner-link');
+
+      const latestVersion = vdata.latest;
+      // Current version: use pageVersion if set, otherwise "latest"
+      const currentVersion = pageVersion || latestVersion;
+
+      // Populate <select>
+      vdata.versions.forEach(v => {
+        const opt  = document.createElement('option');
+        opt.value  = v.path;
+        let label  = v.label;
+        if (v.version === latestVersion)   label += ' (latest)';
+        if (v.prerelease)                  label += ' ⚠ pre-release';
+        opt.textContent = label;
+        if (v.version === currentVersion)  opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      // Navigate on change
+      select.addEventListener('change', () => {
+        const chosen = vdata.versions.find(v => v.path === select.value);
+        if (!chosen) return;
+        const isLatest = chosen.version === latestVersion;
+        window.location.href = isLatest
+          ? rootBase + 'index.html'
+          : rootBase + chosen.path + '/index.html';
+      });
+
+      // Banner logic
+      const currentMeta = vdata.versions.find(v => v.version === currentVersion);
+      const latestPath  = rootBase + 'index.html';
+
+      if (currentMeta && currentMeta.prerelease) {
+        banner.className = 'pre';
+        bannerTx.textContent = `⚠  You are viewing docs for ${currentVersion}, which is a pre-release and may change.`;
+        bannerLk.href = latestPath;
+      } else if (currentVersion !== latestVersion) {
+        banner.className = 'old';
+        bannerTx.textContent = `⚠  You are viewing docs for ${currentVersion}. This is not the latest release (${latestVersion}).`;
+        bannerLk.href = latestPath;
+      }
+      // else: latest production — no banner shown
+    }
+
+    initVersionUI();
+
+    // ─────────────────────────────────────────────────────────────
+    // Tab switching
+    // ─────────────────────────────────────────────────────────────
+    const tabs   = document.querySelectorAll('.tab-btn');
+    const panels = document.querySelectorAll('.tab-panel');
+
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabs.forEach(b => b.classList.toggle('active', b === btn));
+        panels.forEach(p => p.classList.toggle('active', p.id === `panel-${btn.dataset.tab}`));
+        history.replaceState(null, '', `?tab=${btn.dataset.tab}`);
+      });
+    });
+
+    (function restoreTab() {
+      const tab = new URLSearchParams(location.search).get('tab');
+      if (tab) { const b = document.querySelector(`.tab-btn[data-tab="${tab}"]`); if (b) b.click(); }
+    })();
+
+    // ─────────────────────────────────────────────────────────────
+    // Markdown loader
+    // ─────────────────────────────────────────────────────────────
+    async function loadMarkdown(url, targetId) {
+      const el = document.getElementById(targetId);
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(res.statusText);
+        el.innerHTML = marked.parse(await res.text());
+        if (window.hljs) el.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+      } catch (err) {
+        el.innerHTML = `<p style="color:var(--red)">Could not load <code>${url}</code>: ${err.message}</p>`;
+      }
+    }
+
+    loadMarkdown('home.md', 'md-home');
+    loadMarkdown('help.md', 'md-help');
+
+    // ─────────────────────────────────────────────────────────────
+    // NaturalDocs iframe — set src + inject theme
+    // ─────────────────────────────────────────────────────────────
+    const ndFrame = document.getElementById('nd-frame');
+    ndFrame.src   = 'naturaldocs/index.html';
+
+    ndFrame.addEventListener('load', () => {
+      try {
+        const doc  = ndFrame.contentDocument;
+        const link = doc.createElement('link');
+        link.rel   = 'stylesheet';
+        link.href  = '../assets/nd-override.css';
+        doc.head.appendChild(link);
+        doc.body.classList.add('nd-themed');
+      } catch(e) { /* cross-origin or blocked — skip */ }
+    });
+  </script>
+</body>
+</html>

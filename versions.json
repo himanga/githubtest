@@ -1,0 +1,11 @@
+{
+  "latest": "dev",
+  "versions": [
+    {
+      "version": "dev",
+      "label": "dev",
+      "prerelease": true,
+      "path": "dev"
+    }
+  ]
+}
