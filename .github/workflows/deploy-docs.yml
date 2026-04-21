@@ -1,14 +1,17 @@
 name: Build & Deploy Docs
 
 on:
+  # Push to master = build "latest" (pre-release / unreleased) docs
   push:
     branches: [master]
-  pull_request:
-    branches: [master]
+  # Publishing a vX.Y.Z tag = snapshot a production release
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write       # needed to commit versions.json updates
   pages: write
   id-token: write
 
@@ -18,12 +21,14 @@ concurrency:
 
 jobs:
   build-naturaldocs:
-    name: Generate API docs (NaturalDocs)
+    name: Generate & Deploy Docs
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout full history (needed to read all tags)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Mono
         run: |
@@ -37,27 +42,164 @@ jobs:
           unzip -q NaturalDocs.zip -d nd_extracted
           mv "nd_extracted/Natural Docs" nd_bin
 
-      - name: Prepare working directories
+      # ── Determine which version we are building ──────────────────
+      # On a tag push:   VERSION=v1.2.3   IS_RELEASE=true
+      # On master push:  VERSION=<next tag>-dev  IS_RELEASE=false
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/}"
+            IS_RELEASE=true
+          else
+            VERSION="dev"          # ← fixed name, always overwrites
+            IS_RELEASE=false
+          fi
+          echo "version=${VERSION}"     >> $GITHUB_OUTPUT
+          echo "is_release=false"       >> $GITHUB_OUTPUT
+          echo "out_dir=docs/${VERSION}" >> $GITHUB_OUTPUT
+
+      # ── Checkout the gh-pages branch so we can add to it ─────────
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages-out
+          # If gh-pages doesn't exist yet, create it
+        continue-on-error: true
+
+      - name: Initialise gh-pages if it didn't exist
+        run: |
+          if [ ! -d gh-pages-out ]; then
+            mkdir gh-pages-out
+            cd gh-pages-out
+            git init
+            git checkout --orphan gh-pages
+          fi
+
+      # ── Copy the docs/ source files (index, markdown, assets) ────
+      - name: Copy shared site files
+        run: |
+          # Always copy root-level assets and root index.html
+          cp -r docs/assets  gh-pages-out/assets
+          cp    docs/index.html  gh-pages-out/index.html
+          cp    docs/home.md     gh-pages-out/home.md
+          cp    docs/help.md     gh-pages-out/help.md
+
+      # ── Build NaturalDocs into the versioned subfolder ────────────
+      - name: Prepare NaturalDocs output dirs
         run: |
           mkdir -p "naturaldocs/Working Data"
-          mkdir -p docs/naturaldocs
+          mkdir -p "gh-pages-out/${{ steps.version.outputs.version }}/naturaldocs"
 
-      - name: Run NaturalDocs
+      - name: Copy versioned markdown files
+        run: |
+          VDIR="gh-pages-out/${{ steps.version.outputs.version }}"
+          mkdir -p "$VDIR"
+          cp docs/index.html "$VDIR/index.html"
+          cp docs/home.md    "$VDIR/home.md"
+          cp docs/help.md    "$VDIR/help.md"
+          # Assets are shared from root — override CSS link is ../assets/
+
+      - name: Run NaturalDocs (versioned output)
         run: |
           mono nd_bin/NaturalDocs.exe \
             --project naturaldocs \
             --input   src \
-            --output  HTML docs/naturaldocs
+            --output  HTML "gh-pages-out/${{ steps.version.outputs.version }}/naturaldocs"
 
-      - name: Upload docs artifact
+      # ── Also regenerate root naturaldocs for "latest" tab ────────
+      - name: Run NaturalDocs (root / latest)
+        run: |
+          mkdir -p gh-pages-out/naturaldocs
+          mono nd_bin/NaturalDocs.exe \
+            --project naturaldocs \
+            --input   src \
+            --output  HTML gh-pages-out/naturaldocs
+
+      # ── Update versions.json ──────────────────────────────────────
+      - name: Update versions.json
+        run: |
+          VERSIONS_FILE="gh-pages-out/versions.json"
+          VERSION="${{ steps.version.outputs.version }}"
+          IS_RELEASE="${{ steps.version.outputs.is_release }}"
+
+          # Read existing versions array or start fresh
+          if [ -f "$VERSIONS_FILE" ]; then
+            EXISTING=$(cat "$VERSIONS_FILE")
+          else
+            EXISTING='{"latest":"","versions":[]}'
+          fi
+
+          # Determine the new latest production release
+          if [ "$IS_RELEASE" = "true" ]; then
+            NEW_LATEST="$VERSION"
+          else
+            # Keep existing latest if it exists, else placeholder
+            NEW_LATEST=$(echo "$EXISTING" | python3 -c \
+              "import json,sys; d=json.load(sys.stdin); print(d.get('latest',''))")
+          fi
+
+          # Build the new entry
+          PRERELEASE="false"
+          if [ "$IS_RELEASE" != "true" ]; then PRERELEASE="true"; fi
+
+          # Use python3 to safely merge JSON
+          python3 << PYEOF
+          import json, sys
+
+          with open("$VERSIONS_FILE", "r") as f:
+              data = json.load(f)
+
+          new_entry = {
+              "version": "$VERSION",
+              "label":   "$VERSION",
+              "prerelease": $PRERELEASE,
+              "path":    "$VERSION"
+          }
+
+          # Remove any existing entry for this version
+          data["versions"] = [v for v in data["versions"] if v["version"] != "$VERSION"]
+
+          # Pre-releases go at the top, releases after
+          if $PRERELEASE:
+              data["versions"].insert(0, new_entry)
+          else:
+              # Insert after any pre-releases, before older releases
+              insert_at = next(
+                  (i for i, v in enumerate(data["versions"]) if not v["prerelease"]),
+                  len(data["versions"])
+              )
+              data["versions"].insert(insert_at, new_entry)
+
+          if "$IS_RELEASE" == "true":
+              data["latest"] = "$VERSION"
+          elif not data.get("latest"):
+              data["latest"] = "$VERSION"
+
+          with open("$VERSIONS_FILE", "w") as f:
+              json.dump(data, f, indent=2)
+          PYEOF
+
+      # ── Commit and push to gh-pages ──────────────────────────────
+      - name: Commit to gh-pages
+        run: |
+          cd gh-pages-out
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: ${{ steps.version.outputs.version }}" || echo "Nothing to commit"
+          git push origin gh-pages
+
+      # ── Deploy gh-pages branch via GitHub Pages ───────────────────
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs
+          path: gh-pages-out
 
   deploy:
     name: Deploy to GitHub Pages
     needs: build-naturaldocs
-    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     environment:

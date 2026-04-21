@@ -1,0 +1,17 @@
+{
+  "latest": "v1.0.0",
+  "versions": [
+    {
+      "version": "dev",
+      "label": "v1.1.0-beta",
+      "prerelease": true,
+      "path": "v1.1.0-beta"
+    },
+    {
+      "version": "v1.0.0",
+      "label": "v1.0.0",
+      "prerelease": false,
+      "path": "v1.0.0"
+    }
+  ]
+}
