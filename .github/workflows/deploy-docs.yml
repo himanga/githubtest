@@ -71,15 +71,15 @@ jobs:
         run: |
           cd gh-pages-out
 
-          # Add origin if missing (happens on first run)
+          # Ensure origin exists (first run case)
           if ! git remote get-url origin >/dev/null 2>&1; then
             git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
           fi
 
-          # Create gh-pages branch if it doesn't exist
+          # Create gh-pages branch if needed
           if ! git show-ref --verify --quiet refs/heads/gh-pages; then
             git checkout --orphan gh-pages
-            git rm -rf .
+            git rm -rf . || true
           else
             git checkout gh-pages
           fi
