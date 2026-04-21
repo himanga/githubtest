@@ -1,0 +1,126 @@
+/*
+ * nd-override.css
+ * Injected into the NaturalDocs iframe to align it with the foo-docs theme.
+ * NaturalDocs 2.x generates HTML5 with predictable class names.
+ * Adjust selectors if you use a different ND version or theme.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&display=swap');
+
+:root {
+  --bg:           #0f0f11;
+  --bg-surface:   #17171a;
+  --bg-raised:    #1f1f24;
+  --border:       #2e2e35;
+  --text:         #e8e6f0;
+  --text-muted:   #8a879a;
+  --accent:       #c8a96e;
+  --accent-dim:   #9c7e47;
+  --green:        #6dbb8a;
+  --red:          #d97b6c;
+  --blue:         #7ab0d4;
+  --font-body:    'Fraunces', Georgia, serif;
+  --font-code:    'DM Mono', monospace;
+}
+
+html, body {
+  background: var(--bg) !important;
+  color:      var(--text) !important;
+  font-family: var(--font-body) !important;
+}
+
+/* NaturalDocs 2 layout containers */
+#NDPage, #NDContent, .NDContent,
+#NDBody, .NDBody {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+/* Navigation / sidebar */
+#NDMenu, #NDIndex, .NDNavigation,
+#MasterTOCTable {
+  background: var(--bg-surface) !important;
+  border-right: 1px solid var(--border) !important;
+  color: var(--text-muted) !important;
+}
+
+#NDMenu a, #NDIndex a,
+.NDNavigation a {
+  color: var(--text-muted) !important;
+  font-family: var(--font-code) !important;
+  font-size: 0.82rem !important;
+}
+
+#NDMenu a:hover, #NDIndex a:hover,
+.NDNavigation a:hover {
+  color: var(--accent) !important;
+  text-decoration: none !important;
+}
+
+/* Topic / function headings */
+.NDTopic .NDName,
+.CTitle, .FunctionTitle,
+h1, h2, h3 {
+  font-family: var(--font-body) !important;
+  color: var(--text) !important;
+}
+
+.NDTopic .NDName {
+  color: var(--accent) !important;
+  font-size: 1.15rem !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding-bottom: 0.4rem !important;
+}
+
+/* Code / prototypes */
+.NDPrototype, pre, code,
+.CCode, .FCode {
+  font-family: var(--font-code) !important;
+  background: var(--bg-raised) !important;
+  border: 1px solid var(--border) !important;
+  border-left: 3px solid var(--accent-dim) !important;
+  border-radius: 6px !important;
+  color: var(--text) !important;
+  padding: 1rem 1.2rem !important;
+  font-size: 0.875rem !important;
+}
+
+code {
+  border-left: 1px solid var(--border) !important;
+  padding: 0.15em 0.45em !important;
+  border-radius: 4px !important;
+  color: var(--accent) !important;
+}
+
+/* Parameter table */
+.NDParam table,
+.ParameterTable, .NDFields table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+}
+
+.NDParam th, .ParameterTable th {
+  font-family: var(--font-code) !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: var(--text-muted) !important;
+  background: var(--bg-raised) !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding: 0.5rem 0.8rem !important;
+}
+
+.NDParam td, .ParameterTable td {
+  padding: 0.55rem 0.8rem !important;
+  border-bottom: 1px solid var(--border) !important;
+  vertical-align: top !important;
+}
+
+/* Links */
+a { color: var(--accent) !important; }
+a:hover { color: #e0c48a !important; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #3a3a44; border-radius: 4px; }
