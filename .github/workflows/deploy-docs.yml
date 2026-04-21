@@ -128,30 +128,31 @@ jobs:
             echo '{"latest":"","versions":[]}' > "$VERSIONS_FILE"
           fi
 
-          PRERELEASE=false
-          if [ "$IS_RELEASE" != "true" ]; then PRERELEASE=true; fi
+          PRERELEASE="false"
+          if [ "$IS_RELEASE" != "true" ]; then PRERELEASE="true"; fi
 
           python3 << PYEOF
           import json
+
+          PRERELEASE = "$PRERELEASE".lower() == "true"
+          VERSION = "$VERSION"
 
           with open("$VERSIONS_FILE", "r") as f:
               data = json.load(f)
 
           new_entry = {
-              "version": "$VERSION",
-              "label": "$VERSION",
-              "prerelease": $PRERELEASE,
-              "path": "$VERSION"
+              "version": VERSION,
+              "label": VERSION,
+              "prerelease": PRERELEASE,
+              "path": VERSION
           }
 
-          # Remove existing entry for this version
           data["versions"] = [
               v for v in data.get("versions", [])
-              if v.get("version") != "$VERSION"
+              if v.get("version") != VERSION
           ]
 
-          # Insert entry
-          if $PRERELEASE:
+          if PRERELEASE:
               data["versions"].insert(0, new_entry)
           else:
               insert_at = next(
@@ -159,11 +160,10 @@ jobs:
                   len(data["versions"])
               )
               data["versions"].insert(insert_at, new_entry)
-              data["latest"] = "$VERSION"
+              data["latest"] = VERSION
 
-          # Set a default latest if missing
           if not data.get("latest"):
-              data["latest"] = "$VERSION"
+              data["latest"] = VERSION
 
           with open("$VERSIONS_FILE", "w") as f:
               json.dump(data, f, indent=2)
