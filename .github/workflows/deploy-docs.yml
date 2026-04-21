@@ -116,74 +116,74 @@ jobs:
             --input   src \
             --output  HTML gh-pages-out/naturaldocs
 
-- name: Update versions.json
-  run: |
-    VERSIONS_FILE="gh-pages-out/versions.json"
-    VERSION="${{ steps.version.outputs.version }}"
-    IS_RELEASE="${{ steps.version.outputs.is_release }}"
+      - name: Update versions.json
+        run: |
+          VERSIONS_FILE="gh-pages-out/versions.json"
+          VERSION="${{ steps.version.outputs.version }}"
+          IS_RELEASE="${{ steps.version.outputs.is_release }}"
 
-    # Ensure versions.json exists
-    if [ ! -f "$VERSIONS_FILE" ]; then
-      mkdir -p "$(dirname "$VERSIONS_FILE")"
-      echo '{"latest":"","versions":[]}' > "$VERSIONS_FILE"
-    fi
+          # Ensure versions.json exists
+          if [ ! -f "$VERSIONS_FILE" ]; then
+            mkdir -p "$(dirname "$VERSIONS_FILE")"
+            echo '{"latest":"","versions":[]}' > "$VERSIONS_FILE"
+          fi
 
-    PRERELEASE=false
-    if [ "$IS_RELEASE" != "true" ]; then PRERELEASE=true; fi
+          PRERELEASE=false
+          if [ "$IS_RELEASE" != "true" ]; then PRERELEASE=true; fi
 
-    python3 << PYEOF
-    import json
+          python3 << PYEOF
+          import json
 
-    with open("$VERSIONS_FILE", "r") as f:
-        data = json.load(f)
+          with open("$VERSIONS_FILE", "r") as f:
+              data = json.load(f)
 
-    new_entry = {
-        "version": "$VERSION",
-        "label": "$VERSION",
-        "prerelease": $PRERELEASE,
-        "path": "$VERSION"
-    }
+          new_entry = {
+              "version": "$VERSION",
+              "label": "$VERSION",
+              "prerelease": $PRERELEASE,
+              "path": "$VERSION"
+          }
 
-    # Remove existing entry for this version
-    data["versions"] = [
-        v for v in data.get("versions", [])
-        if v.get("version") != "$VERSION"
-    ]
+          # Remove existing entry for this version
+          data["versions"] = [
+              v for v in data.get("versions", [])
+              if v.get("version") != "$VERSION"
+          ]
 
-    # Insert entry
-    if $PRERELEASE:
-        data["versions"].insert(0, new_entry)
-    else:
-        insert_at = next(
-            (i for i, v in enumerate(data["versions"]) if v.get("prerelease")),
-            len(data["versions"])
-        )
-        data["versions"].insert(insert_at, new_entry)
-        data["latest"] = "$VERSION"
+          # Insert entry
+          if $PRERELEASE:
+              data["versions"].insert(0, new_entry)
+          else:
+              insert_at = next(
+                  (i for i, v in enumerate(data["versions"]) if v.get("prerelease")),
+                  len(data["versions"])
+              )
+              data["versions"].insert(insert_at, new_entry)
+              data["latest"] = "$VERSION"
 
-    # Set a default latest if missing
-    if not data.get("latest"):
-        data["latest"] = "$VERSION"
+          # Set a default latest if missing
+          if not data.get("latest"):
+              data["latest"] = "$VERSION"
 
-    with open("$VERSIONS_FILE", "w") as f:
-        json.dump(data, f, indent=2)
-    PYEOF
+          with open("$VERSIONS_FILE", "w") as f:
+              json.dump(data, f, indent=2)
+          PYEOF
 
-    # ── Commit and push to gh-pages ──────────────────────────────
-    - name: Commit to gh-pages
-      run: |
-        cd gh-pages-out
-        git config user.name  "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add -A
-        git commit -m "docs: ${{ steps.version.outputs.version }}" || echo "Nothing to commit"
-        git push origin gh-pages
+      # ── Commit and push to gh-pages ──────────────────────────────
+      - name: Commit to gh-pages
+        run: |
+          cd gh-pages-out
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "docs: ${{ steps.version.outputs.version }}" || echo "Nothing to commit"
+          git push origin gh-pages
 
-    # ── Deploy gh-pages branch via GitHub Pages ───────────────────
-    - name: Upload Pages artifact
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: gh-pages-out
+      # ── Deploy gh-pages branch via GitHub Pages ───────────────────
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: gh-pages-out
 
   deploy:
     name: Deploy to GitHub Pages
