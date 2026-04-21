@@ -54,9 +54,9 @@ jobs:
             VERSION="dev"          # ← fixed name, always overwrites
             IS_RELEASE=false
           fi
-          echo "version=${VERSION}"     >> $GITHUB_OUTPUT
-          echo "is_release=false"       >> $GITHUB_OUTPUT
-          echo "out_dir=docs/${VERSION}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}"       >> $GITHUB_OUTPUT
+          echo "is_release=${IS_RELEASE}" >> $GITHUB_OUTPUT
+          echo "out_dir=docs/${VERSION}"  >> $GITHUB_OUTPUT
 
       # ── Checkout the gh-pages branch so we can add to it ─────────
       - name: Checkout gh-pages branch
@@ -116,85 +116,74 @@ jobs:
             --input   src \
             --output  HTML gh-pages-out/naturaldocs
 
-      # ── Update versions.json ──────────────────────────────────────
-      - name: Update versions.json
-        run: |
-          VERSIONS_FILE="gh-pages-out/versions.json"
-          VERSION="${{ steps.version.outputs.version }}"
-          IS_RELEASE="${{ steps.version.outputs.is_release }}"
+- name: Update versions.json
+  run: |
+    VERSIONS_FILE="gh-pages-out/versions.json"
+    VERSION="${{ steps.version.outputs.version }}"
+    IS_RELEASE="${{ steps.version.outputs.is_release }}"
 
-          # Read existing versions array or start fresh
-          if [ -f "$VERSIONS_FILE" ]; then
-            EXISTING=$(cat "$VERSIONS_FILE")
-          else
-            EXISTING='{"latest":"","versions":[]}'
-          fi
+    # Ensure versions.json exists
+    if [ ! -f "$VERSIONS_FILE" ]; then
+      mkdir -p "$(dirname "$VERSIONS_FILE")"
+      echo '{"latest":"","versions":[]}' > "$VERSIONS_FILE"
+    fi
 
-          # Determine the new latest production release
-          if [ "$IS_RELEASE" = "true" ]; then
-            NEW_LATEST="$VERSION"
-          else
-            # Keep existing latest if it exists, else placeholder
-            NEW_LATEST=$(echo "$EXISTING" | python3 -c \
-              "import json,sys; d=json.load(sys.stdin); print(d.get('latest',''))")
-          fi
+    PRERELEASE=false
+    if [ "$IS_RELEASE" != "true" ]; then PRERELEASE=true; fi
 
-          # Build the new entry
-          PRERELEASE="false"
-          if [ "$IS_RELEASE" != "true" ]; then PRERELEASE="true"; fi
+    python3 << PYEOF
+    import json
 
-          # Use python3 to safely merge JSON
-          python3 << PYEOF
-          import json, sys
+    with open("$VERSIONS_FILE", "r") as f:
+        data = json.load(f)
 
-          with open("$VERSIONS_FILE", "r") as f:
-              data = json.load(f)
+    new_entry = {
+        "version": "$VERSION",
+        "label": "$VERSION",
+        "prerelease": $PRERELEASE,
+        "path": "$VERSION"
+    }
 
-          new_entry = {
-              "version": "$VERSION",
-              "label":   "$VERSION",
-              "prerelease": $PRERELEASE,
-              "path":    "$VERSION"
-          }
+    # Remove existing entry for this version
+    data["versions"] = [
+        v for v in data.get("versions", [])
+        if v.get("version") != "$VERSION"
+    ]
 
-          # Remove any existing entry for this version
-          data["versions"] = [v for v in data["versions"] if v["version"] != "$VERSION"]
+    # Insert entry
+    if $PRERELEASE:
+        data["versions"].insert(0, new_entry)
+    else:
+        insert_at = next(
+            (i for i, v in enumerate(data["versions"]) if v.get("prerelease")),
+            len(data["versions"])
+        )
+        data["versions"].insert(insert_at, new_entry)
+        data["latest"] = "$VERSION"
 
-          # Pre-releases go at the top, releases after
-          if $PRERELEASE:
-              data["versions"].insert(0, new_entry)
-          else:
-              # Insert after any pre-releases, before older releases
-              insert_at = next(
-                  (i for i, v in enumerate(data["versions"]) if not v["prerelease"]),
-                  len(data["versions"])
-              )
-              data["versions"].insert(insert_at, new_entry)
+    # Set a default latest if missing
+    if not data.get("latest"):
+        data["latest"] = "$VERSION"
 
-          if "$IS_RELEASE" == "true":
-              data["latest"] = "$VERSION"
-          elif not data.get("latest"):
-              data["latest"] = "$VERSION"
+    with open("$VERSIONS_FILE", "w") as f:
+        json.dump(data, f, indent=2)
+    PYEOF
 
-          with open("$VERSIONS_FILE", "w") as f:
-              json.dump(data, f, indent=2)
-          PYEOF
+    # ── Commit and push to gh-pages ──────────────────────────────
+    - name: Commit to gh-pages
+      run: |
+        cd gh-pages-out
+        git config user.name  "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add -A
+        git commit -m "docs: ${{ steps.version.outputs.version }}" || echo "Nothing to commit"
+        git push origin gh-pages
 
-      # ── Commit and push to gh-pages ──────────────────────────────
-      - name: Commit to gh-pages
-        run: |
-          cd gh-pages-out
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "docs: ${{ steps.version.outputs.version }}" || echo "Nothing to commit"
-          git push origin gh-pages
-
-      # ── Deploy gh-pages branch via GitHub Pages ───────────────────
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: gh-pages-out
+    # ── Deploy gh-pages branch via GitHub Pages ───────────────────
+    - name: Upload Pages artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: gh-pages-out
 
   deploy:
     name: Deploy to GitHub Pages
