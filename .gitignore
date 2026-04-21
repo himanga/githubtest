@@ -1,7 +1,9 @@
 node_modules/
 naturaldocs/Working Data/
-NaturalDocs/
-NaturalDocs.zip
+docs/**/naturaldocs/**
+NaturalDocs/**
+!naturaldocs/
+!naturaldocs/Project.txt
 nd_extracted/
 nd_bin/
 .DS_Store
