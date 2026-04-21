@@ -108,6 +108,11 @@ jobs:
           cp docs/help.md    "$VDIR/help.md"
           # Assets are shared from root — override CSS link is ../assets/
 
+      - name: Fix asset paths in versioned pages
+        run: |
+          VDIR="gh-pages-out/${{ steps.version.outputs.version }}"
+          sed -i 's|href="assets/|href="../assets/|g' "$VDIR/index.html"
+
       - name: Run NaturalDocs (versioned output)
         run: |
           mono nd_bin/NaturalDocs.exe \
